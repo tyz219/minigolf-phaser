@@ -14,6 +14,11 @@ class MinigolfScene extends Phaser.Scene {
   private holeSensor!: MatterJS.BodyType
   private isBallMoving: boolean = false
   private hasScored: boolean = false
+  private leftButton!: Phaser.GameObjects.Rectangle
+  private rightButton!: Phaser.GameObjects.Rectangle
+  private powerUpButton!: Phaser.GameObjects.Rectangle
+  private powerDownButton!: Phaser.GameObjects.Rectangle
+  private hitButton!: Phaser.GameObjects.Rectangle
 
   constructor() {
     super({ key: 'MinigolfScene' })
@@ -37,7 +42,7 @@ class MinigolfScene extends Phaser.Scene {
     this.createKeyholeTrack(width, height)
     
     // Loch oben in der Mitte des oberen Kreises
-    const holeX = width / 2
+    const holeX = width / 2 - 40 // Gleiche Verschiebung wie Bahn
     const holeY = topCenterY // Mitte des oberen Kreises
     const holeRadius = 30
     
@@ -52,8 +57,8 @@ class MinigolfScene extends Phaser.Scene {
     this.holeSensor = (holeSensorGameObject as any).body as MatterJS.BodyType
     
     // Ball unten auf der Bahn
-    const ballX = width / 2
-    const ballY = height - 100
+    const ballX = width / 2 - 40 // Gleiche Verschiebung wie Bahn
+    const ballY = height - 170 // Höher, damit Platz für Buttons
     const ballRadius = 15
     
     // Ball als Matter.js Circle Body
@@ -70,20 +75,25 @@ class MinigolfScene extends Phaser.Scene {
     this.ballGraphics = this.add.circle(ballX, ballY, ballRadius, 0xFFFFFF, 1)
     this.ballGraphics.setStrokeStyle(2, 0x000000)
     
-    // Dreieck-Hindernis: kurz unterhalb des Kreises, Spitze nach oben
-    this.createTriangle(width / 2, connectionTopY + 60, 50, 0)
+    // Dreieck-Hindernis: im geraden Teil der Bahn, kurz unterhalb der Verbindung zum oberen Kreis
+    // Position: Verbindungsbereich zwischen Kreis und rechteckigem Teil
+    // Rotation: 0 Grad (Spitze zeigt nach oben zum Loch)
+    const triangleY = connectionTopY + 40 // Kurz unterhalb der Verbindung
+    this.createTriangle(width / 2 - 40, triangleY, 50, 0) // Gleiche X-Verschiebung wie Bahn
     
     // Ziellinie (gelb)
     this.aimLine = this.add.graphics()
     
-    // Power-Balken unter der Bahn (0-100%)
-    const barWidth = 300
-    const barHeight = 20
-    const barY = height - 20
+    // Power-Balken vertikal rechts neben der Bahn (0-100%)
+    // Position: width * 0.9 (rechts) - sicher links vom HIT-Button (width * 0.8)
+    const barWidth = 20
+    const barHeight = 300
+    const barX = width * 0.9 // Rechts, aber sicher links vom HIT-Button
+    const barY = height - 200 // Über den Buttons
     
     // Hintergrund des Balkens
     this.powerBarBg = this.add.rectangle(
-      width / 2,
+      barX,
       barY,
       barWidth,
       barHeight,
@@ -95,7 +105,10 @@ class MinigolfScene extends Phaser.Scene {
     // Power-Balken (Graphic für dynamisches Update)
     this.powerBar = this.add.graphics()
     
-    // Tastatur-Input
+    // Mobile-Steuerung erstellen
+    this.createMobileControls(width, height)
+    
+    // Tastatur-Input (für Desktop)
     this.cursors = this.input.keyboard!.createCursorKeys()
     this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
     
@@ -139,13 +152,13 @@ class MinigolfScene extends Phaser.Scene {
   }
   
   createKeyholeTrack(width: number, height: number) {
-    const trackX = width / 2
+    const trackX = width / 2 - 40 // Etwas nach links, damit Platz rechts für Power-Balken
     const bottomWidth = 200
     const topRadius = 150
     const wallThickness = 20
     
-    // Unten: Rechteckige Form
-    const bottomY = height - 50
+    // Unten: Rechteckige Form - höher, damit Platz für Buttons
+    const bottomY = height - 120 // Höher, damit Platz für Buttons unten
     const bottomLeftX = trackX - bottomWidth / 2
     const bottomRightX = trackX + bottomWidth / 2
     
@@ -337,6 +350,163 @@ class MinigolfScene extends Phaser.Scene {
     ).setStrokeStyle(2, 0x654321)
   }
   
+  createMobileControls(width: number, height: number) {
+    // Touch-Zonen: großzügig (75px) für bessere Ergonomie
+    const buttonSize = 75
+    const buttonY = height - 45 // Weiter unten, damit keine Überlappung mit Bahn
+    const hitButtonWidth = 120
+    const hitButtonHeight = 75
+    
+    // === LINKS UNTEN: Pfeiltasten (Zielen) ===
+    // Position: width * 0.2 (relativ, links)
+    const leftSectionX = width * 0.2
+    const arrowSpacing = 90 // Abstand zwischen Pfeilen
+    
+    // Linke Pfeil-Button (Richtung links)
+    this.leftButton = this.add.rectangle(
+      leftSectionX - arrowSpacing / 2,
+      buttonY,
+      buttonSize,
+      buttonSize,
+      0x888888,
+      0.8
+    )
+    this.leftButton.setStrokeStyle(3, 0x000000)
+    this.leftButton.setInteractive({ useHandCursor: true })
+    
+    const leftArrow = this.add.text(
+      leftSectionX - arrowSpacing / 2,
+      buttonY,
+      '←',
+      { fontSize: '42px', color: '#FFFFFF', fontStyle: 'bold' }
+    )
+    leftArrow.setOrigin(0.5)
+    
+    this.leftButton.on('pointerdown', () => {
+      if (!this.isBallMoving && this.ballBody) {
+        this.aimAngle -= 2
+      }
+    })
+    
+    // Rechte Pfeil-Button (Richtung rechts)
+    this.rightButton = this.add.rectangle(
+      leftSectionX + arrowSpacing / 2,
+      buttonY,
+      buttonSize,
+      buttonSize,
+      0x888888,
+      0.8
+    )
+    this.rightButton.setStrokeStyle(3, 0x000000)
+    this.rightButton.setInteractive({ useHandCursor: true })
+    
+    const rightArrow = this.add.text(
+      leftSectionX + arrowSpacing / 2,
+      buttonY,
+      '→',
+      { fontSize: '42px', color: '#FFFFFF', fontStyle: 'bold' }
+    )
+    rightArrow.setOrigin(0.5)
+    
+    this.rightButton.on('pointerdown', () => {
+      if (!this.isBallMoving && this.ballBody) {
+        this.aimAngle += 2
+      }
+    })
+    
+    // === MITTE UNTEN: Power-Buttons ===
+    // Position: width * 0.5 (relativ, zentriert)
+    const centerX = width * 0.5
+    const powerButtonSpacing = 90 // Abstand zwischen + und -
+    
+    // Minus-Button (Stärke reduzieren)
+    this.powerDownButton = this.add.rectangle(
+      centerX - powerButtonSpacing / 2,
+      buttonY,
+      buttonSize,
+      buttonSize,
+      0x888888,
+      0.8
+    )
+    this.powerDownButton.setStrokeStyle(3, 0x000000)
+    this.powerDownButton.setInteractive({ useHandCursor: true })
+    
+    const minusText = this.add.text(
+      centerX - powerButtonSpacing / 2,
+      buttonY,
+      '−',
+      { fontSize: '52px', color: '#FFFFFF', fontStyle: 'bold' }
+    )
+    minusText.setOrigin(0.5)
+    
+    this.powerDownButton.on('pointerdown', () => {
+      if (!this.isBallMoving && this.ballBody) {
+        this.power = Phaser.Math.Clamp(this.power - 0.05, 0.1, 1.0)
+      }
+    })
+    
+    // Plus-Button (Stärke erhöhen)
+    this.powerUpButton = this.add.rectangle(
+      centerX + powerButtonSpacing / 2,
+      buttonY,
+      buttonSize,
+      buttonSize,
+      0x888888,
+      0.8
+    )
+    this.powerUpButton.setStrokeStyle(3, 0x000000)
+    this.powerUpButton.setInteractive({ useHandCursor: true })
+    
+    const plusText = this.add.text(
+      centerX + powerButtonSpacing / 2,
+      buttonY,
+      '+',
+      { fontSize: '52px', color: '#FFFFFF', fontStyle: 'bold' }
+    )
+    plusText.setOrigin(0.5)
+    
+    this.powerUpButton.on('pointerdown', () => {
+      if (!this.isBallMoving && this.ballBody) {
+        this.power = Phaser.Math.Clamp(this.power + 0.05, 0.1, 1.0)
+      }
+    })
+    
+    // === RECHTS UNTEN: HIT-Button ===
+    // Position: width * 0.8 (relativ, rechts) - sicher Abstand zur Power-Leiste
+    const hitButtonX = width * 0.8
+    this.hitButton = this.add.rectangle(
+      hitButtonX,
+      buttonY,
+      hitButtonWidth,
+      hitButtonHeight,
+      0xFF0000,
+      0.9
+    )
+    this.hitButton.setStrokeStyle(4, 0x000000)
+    this.hitButton.setInteractive({ useHandCursor: true })
+    
+    const hitText = this.add.text(
+      hitButtonX,
+      buttonY,
+      'HIT',
+      { fontSize: '36px', color: '#FFFFFF', fontStyle: 'bold' }
+    )
+    hitText.setOrigin(0.5)
+    hitText.setStroke('#000000', 2)
+    
+    this.hitButton.on('pointerdown', () => {
+      if (!this.isBallMoving && this.ballBody) {
+        const body = this.ballBody as any
+        const angleRad = Phaser.Math.DegToRad(this.aimAngle - 90)
+        const force = this.power * 0.08
+        const forceX = Math.cos(angleRad) * force
+        const forceY = Math.sin(angleRad) * force
+        
+        this.matter.body.applyForce(this.ballBody, body.position, { x: forceX, y: forceY })
+      }
+    })
+  }
+  
   createTriangle(x: number, y: number, radius: number, angle: number) {
     const angleRad = Phaser.Math.DegToRad(angle)
     
@@ -421,22 +591,25 @@ class MinigolfScene extends Phaser.Scene {
         this.power = Phaser.Math.Clamp(this.power - 0.01, 0.1, 1.0)
       }
       
-      // Power-Balken aktualisieren
+      // Power-Balken aktualisieren (vertikal rechts neben der Bahn)
+      // Position: width * 0.9 (rechts) - sicher links vom HIT-Button (width * 0.8)
       this.powerBar.clear()
-      const barWidth = 300
-      const barHeight = 20
-      const barX = this.scale.width / 2 - barWidth / 2
-      const barY = this.scale.height - 20
-      const powerWidth = barWidth * this.power
+      const barWidth = 20
+      const barHeight = 300
+      const barX = this.scale.width * 0.9 // Rechts, aber sicher links vom HIT-Button
+      const barY = this.scale.height - 200 // Über den Buttons
       
-      this.powerBar.fillStyle(0x00FF00, 1) // Grün für Power
-      this.powerBar.fillRect(barX, barY - barHeight / 2, powerWidth, barHeight)
+      this.powerBar.fillStyle(0x00FF00, 1) // Grün
+      const currentPowerHeight = barHeight * this.power
+      const currentPowerY = barY - barHeight / 2 + (barHeight - currentPowerHeight) // Von unten nach oben füllen
       
-      // Prozentanzeige
-      this.powerBar.lineStyle(1, 0xFFFFFF, 1)
+      this.powerBar.fillRect(barX - barWidth / 2, currentPowerY, barWidth, currentPowerHeight)
+      
+      // Skala (0-100%) - Markierungen horizontal
+      this.powerBar.lineStyle(1, 0x000000, 0.5)
       for (let i = 0; i <= 10; i++) {
-        const x = barX + (barWidth / 10) * i
-        this.powerBar.lineBetween(x, barY - barHeight / 2, x, barY + barHeight / 2)
+        const y = barY - barHeight / 2 + (barHeight / 10) * i
+        this.powerBar.lineBetween(barX - barWidth / 2, y, barX + barWidth / 2, y)
       }
       
       // Ziellinie zeichnen (gelb)
@@ -491,6 +664,10 @@ const config: Phaser.Types.Core.GameConfig = {
   height: 900,
   parent: 'app',
   backgroundColor: '#228B22',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
   physics: {
     default: 'matter',
     matter: {
